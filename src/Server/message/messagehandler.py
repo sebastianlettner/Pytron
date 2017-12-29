@@ -1,4 +1,5 @@
-server_features = "BASIC"
+
+server_features = "BASIC,SLOW,FAST,WALLS"
 game_names = "Tron"
 game = "Tron"
 command_from_client = ["HELLO","LIST_GAMES","CREATE_Match",
@@ -6,27 +7,55 @@ command_from_client = ["HELLO","LIST_GAMES","CREATE_Match",
                        "I_AM_READY", "NEW_DIRECTION"]
 
 
+
+
 class message(object):
-    """ Creates message object
-    message must be decoded"""
+    """
+    Implement a Message
+    """
 
 
     def __init__(self,message):
+
+        """
+        Initializes Object
+
+        Args:
+            message (string): The message you want to initialize as an object
+        """
 
         self.message = message
 
     def m_split(self):
 
+        """
+        Splits the message by spaces
+
+        Variables:
+            message_split (list): Contains the parts of the
+                                  message which were seperated by spaces.
+
+            length (int): amount of words seperated by spaces in the message.
+
+            command (string): The first word of the message.
+                              If its a protocoll message this should be the command.
+
+        """
+
         self.message_split = self.message.split()
         self.length = len(self.message_split) #useless so far
         self.command = self.message_split[0]
 
-    def determine_command(self):
-        pass
 
-""" All the messages of
-the lobby protocol that the server can send to
-the client """
+"""
+The following classes each implement one protocoll message.
+They always contain the command as the first word and if necessary
+one can initialize the object with the intended arguments.
+This way we can easily change the protocoll messages
+
+The complete_message (string) variable represents the full command
+ready to be sended.
+"""
 
 
 
@@ -128,6 +157,9 @@ class GAME_ENDED(object):
 
         self.complete_message = self.command + self.reason + "\x00"
 
+class UPDATE_FIELD(object):
+    pass
+
 """ All Error Messages
     the server can send """
 
@@ -182,11 +214,89 @@ class DISCONNECTED_YOU(object):
 
 """----------------------------------------------------------------------------
 ----------------------------------------------------------------------------"""
+"""All messages the Client can send"""
 
-# class HELLO(object):
-#
-#     def __init__(self,name,list_client_features):
-#
-#         self.name = name
-#
-#         self.list_client_features = list_client_features
+class HELLO(object):
+
+    def __init__(self,name,features):
+
+        self.command = "HELLO "
+
+        self.name = name + " "
+
+        self.features = features
+
+        self.complete_message = self.command + self.name + self.features + "\x00"
+
+class LIST_GAMES(object):
+
+    def __init__(self):
+
+        self.command = "LIST_GAMES"
+
+        self.complete_message = self.command + "\x00"
+
+class CREATE_MATCH(object):
+
+    def __init__(self,game,name,features):
+
+        self.command = "CREATE_MATCH "
+
+        self.game =  game + " "
+
+        self.name = name + " "
+
+        self.features = features
+
+        self.complete_message = self.command + self.game + self.name + self.features + "\x00"
+
+class LIST_MATCHES(object):
+
+    def __init__(self,game):
+
+        self.command = "LIST_MATCHES "
+
+        self.game = game
+
+        self.complete_message = self.command + self.game + "\x00"
+
+class MATCH_FEATURES(object):
+
+    def __init__(self,name):
+
+        self.command = "MATCH_FEATURES "
+
+        self.name = name
+
+
+        self.complete_message = self.command + self.name + "\x00"
+
+class JOIN_MATCH(object):
+
+    def __init__(self,name,color):
+
+        self.command = "JOIN_MATCH "
+
+        self.name = name + " "
+
+        self.color = str(color)
+
+        self.complete_message = self.command + self.name + self.color + "\x00"
+
+class I_AM_READY(object):
+
+    def __init__(self):
+
+        self.command = "I_AM_READY "
+
+        self.complete_message = self.command + "\x00"
+
+class LEAVING_MATCH(object):
+
+    def __init__(self,reason):
+
+        self.command = "LEAVING_MATCH "
+
+        self.reason = reason
+
+        self.complete_message = self.command + self.reason + "\x00"

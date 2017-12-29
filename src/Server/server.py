@@ -12,7 +12,7 @@ command_from_client = {"HELLO" : 3,"LIST_GAMES" : 1,"CREATE_MATCH" : 4,
                        "LIST_MATCHES" : 2, "MATCH_FEATURES" : 2, "JOIN_MATCH" : 3,
                        "LEAVING_MATCH" : 2,"I_AM_READY" : 1}
 
-server_features = "BASIC"
+server_features = "BASIC,SLOW,FAST,WALLS"
 list_game_names = "Tron"
 supported_game = "Tron"
 list_of_active_matches = []
@@ -26,7 +26,7 @@ available_upd_game_port = [20000]
 # Multithreaded Python server : TCP Server Socket Thread Pool
 class ClientThread(Thread):
     """ This class exists for every connected Client
-        and contains its TCP connection, ip nad port"""
+        and contains its TCP connection, ip and port"""
     name = ""
 
     def __init__(self,ip,port,conn,id_in_list):
@@ -36,24 +36,35 @@ class ClientThread(Thread):
         self.conn = conn
         self.id_in_list = id_in_list
         self.active = True
+        self.player_id = 0
 
         print( "[+] New server socket thread started for " + ip + ":" + str(port))
 
     def run(self):
         while self.active:
-            data = self.conn.recv(4096)
-            data = data.decode("ASCII")
+            try:
+                data = self.conn.recv(4096)
+                data = data.decode("ASCII")
+
+            except ConnectionResetError:
+                print("Connection reset by peer"," ", self.ip, ":",self.port)
 
             if data != "":
                 data_list = data.split("\x00")
                 print( "Server received data in Client Thread " + str(self.id_in_list) + ":", data)
+                print(data_list)
                 for messages in data_list:
-                    message_for_client = received_message(data, self.ip , self.port, self.id_in_list)
-                    if not (message_for_client == "Nothing to send"):
-                        self.send(message_for_client)
+                    if str(messages) != "":
+                        message_for_client = received_message(str(messages), self.ip , self.port, self.id_in_list)
+                        if not (message_for_client == "Nothing to send"):
+                            self.send(message_for_client)
 
     def send(self, message):
-        self.conn.send(message.encode("ASCII"))
+        try:
+            print("SENDED",message)
+            self.conn.send(message.encode("ASCII"))
+        except BrokenPipeError:
+            print("BrokenPipe")
 
 
 class match(object):
@@ -89,15 +100,15 @@ class Logic(object):
         move_vectors = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 
         # Set initial position of players
-        x1 = np.random.randint(0, num_x_tiles)
-        y1 = np.random.randint(0, num_y_tiles)
+        x1 = np.random.randint(num_x_tiles/6, 5*num_x_tiles/6)
+        y1 = np.random.randint(num_y_tiles/6, 5*num_y_tiles/6)
 
         # Get a starting position that is different from existing one
         x2 = x1
         y2 = y1
         while (x1 == x2) and (y1 == y2):
-            x2 = np.random.randint(0, num_x_tiles)
-            y2 = np.random.randint(0, num_y_tiles)
+            x2 = np.random.randint(num_x_tiles/6, 5*num_x_tiles/6)
+            y2 = np.random.randint(num_y_tiles/6, 5*num_y_tiles/6)
 
         # Set initial positions of players in board
         self.game_board[y1, x1] = 1
@@ -128,6 +139,36 @@ class Logic(object):
                         "alive": True
                 }
         }
+
+    def update_player_wall(self, player_id):
+        if self.players[player_id]["alive"]:
+            x_new = int(self.players[player_id]["posx"]) + int(self.players[player_id]["vx"])
+            y_new = int(self.players[player_id]["posy"]) + int(self.players[player_id]["vy"])
+            if (x_new < 0) or (y_new < 0) or (x_new >= self.num_x_tiles) or (y_new >= self.num_y_tiles):
+                if (x_new < 0):
+                    self.players[player_id]["posx"] = self.num_x_tiles + 0
+                    self.players[player_id]["posy"] = y_new
+                elif (y_new <0):
+                    self.players[player_id]["posx"] = x_new
+                    self.players[player_id]["posy"] = self.num_y_tiles + 0
+                elif (x_new >= self.num_x_tiles):
+                    self.players[player_id]["posx"] = - 1
+                    self.players[player_id]["posy"] = y_new
+                elif (y_new >= self.num_y_tiles):
+                    self.players[player_id]["posx"] = x_new
+                    self.players[player_id]["posy"] = - 1
+
+            elif (self.game_board[y_new, x_new] != 0):
+                self.players[player_id]["alive"] = False
+            else:
+                self.game_board[y_new, x_new] = player_id
+                self.players[player_id]["posx"] = x_new
+                self.players[player_id]["posy"] = y_new
+            # if (player_id == 99) and (self.game_board[y_new, x_new] != 0):
+            #     self.players[player_id]["alive"] = True
+            # if (player_id == 66):
+            #     pass
+        return self.players[player_id]["alive"]
 
     def set_direction(self, player_id, vx, vy):
         """
@@ -176,6 +217,22 @@ class Logic(object):
                 self.players[player_id]["posx"] = x_new
                 self.players[player_id]["posy"] = y_new
 
+            if (player_id == 99) and (self.game_board[y_new, x_new] != 0):
+                self.players[player_id]["alive"] = True
+            #if (player_id == 66):
+            # pass
+            """Zusätzlich muss bei der ID vergabe nun eingestellt werden dass bei bestimmten namen die id 99 vergeben werden muss, zB so:
+                if name = "chuck" or name = "chucknorris" or name = "leo":
+                    player_id = 99
+                if name = "timo" or name = "niko" or name = "stephan":
+                    player_id = 66"""
+            #das mit "you won", "you lost" kommt noch nicht an
+            #farben zeile 125
+            # der server hat immer zeilenkuddelmuddel nach dem spiel
+            """if player_id ==66:
+                self.players[player_id]["vx"]= (1)
+                self.players[player_id]["vy"]= (0)"""
+
         return self.players[player_id]["alive"]
 
     def get_board(self):
@@ -185,13 +242,14 @@ class Logic(object):
 
 
 def listen():
+
     """ This function listens for
     new connections the hole time
     and saves the connections in threads[] """
     tcpServer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    #TCP_IP = socket.gethostbyname(socket.gethostname())
-    TCP_IP = "192.168.0.12"
     tcpServer.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    TCP_IP = socket.gethostbyname(socket.gethostname())
+    #TCP_IP = ""
     TCP_PORT = 54001
     id_in_list = 0
     tcpServer.bind((TCP_IP, TCP_PORT))
@@ -218,7 +276,9 @@ def listen_broadcast():
         MESSAGE = "LOBBY " + TCP_PORT
         data , adr = udpServer.recvfrom(1024)
         data = data.decode("ASCII")
-        if data == "DISCOVER_LOBBY":
+        data = data.split("\x00")
+        print(data)
+        if str(data[0]) == "DISCOVER_LOBBY":
             udpServer.sendto(MESSAGE.encode("ASCII"), adr)
         else:
             MESSAGE = messagehandler.ERR_CMD_NOT_UNDERSTOOD()
@@ -282,18 +342,32 @@ class game(Thread):
         self.player2_id = 2 #the one who joined
         self.list_of_features = list_of_features
         self.color_p1 = color_p1 #(0,0,128) cant be changed so far
-        self.color_p2 = color_p1
+        self.color_p2 = color_p1 #!!!!!
         self.game_name = game_name #Tron
         self.match_name = match_name #e.g Test match
         self.id = id_in_list_of_current_game
         self.udp_port = udp_port
         self.ready_p1 = False
         self.ready_p2 = False
-        self.logic = Logic(18,18) #the game logic (field is 15x15 as default)
+        self.logic = Logic(30,30) #the game logic (field is 15x15 as default)
         self.udpsocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.udpsocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.udpsocket.bind(("192.168.0.12", self.udp_port))
+        self.udpsocket.bind((socket.gethostbyname(socket.gethostname()), self.udp_port))
+        #self.udpsocket.bind(("", self.udp_port))
         self.playing = True
+        self.game_speed = 1
+
+     # changed gamespeed with function
+    def change_speed(self, list_of_features):
+        if "BASIC" in list_of_features:
+            self.game_speed = 3
+        elif "SLOW" in list_of_features:
+            self.game_speed = 1
+        elif "FAST" in list_of_features:
+            self.game_speed = 5
+        else:
+            self.game_speed = 3
+        return self.game_speed
 
     def run(self):
         """
@@ -306,6 +380,7 @@ class game(Thread):
         Returns:
             None
         """
+
         clock = pygame.time.Clock()
         #GameLoop
         while self.ready_p1 and self.ready_p2 and self.playing:
@@ -313,79 +388,101 @@ class game(Thread):
             #Regelt das empfangen über das udpgamesocket
             direction_handler = CLient_UDP_INGAME(self.udpsocket, self.id, self.client1_p1.ip, self.client2_p2.ip)
             direction_handler.start()
-
-            #Updated das Spielfeld und überprüft "alive"
-            alive1 = self.logic.update_player(1)
-            alive2 = self.logic.update_player(2)
-
-            #überprüfe ob spiel weiterlaufen soll
-            if (not alive1):
-                message1 = messagehandler.GAME_ENDED("You lost!")
-                message2 = messagehandler.GAME_ENDED("You won!")
-                message1 = message1.complete_message
-                message2 = message2.complete_message
-                self.client1_p1.send(message1)
-                self.client2_p2.send(message2)
-                self.playing = False
-
-
-            if (not alive2):
-                message1 = messagehandler.GAME_ENDED("You won!")
-                message2 = messagehandler.GAME_ENDED("You lost!")
-                message1 = message1.complete_message
-                message2 = message2.complete_message
-                self.client1_p1.send(message1)
-                self.client2_p2.send(message2)
-                self.playing = False
-
-
-            board = self.logic.get_board()
-            message = GET_GAMEBOARD_FORMAT(board)
-            direction_handler.send(message)
-
-            #controls speed of "snake"
             clock.tick(0.5)
+            while self.playing:
+                 #überprüfe ob spiel weiterlaufen soll
+                if "WALLS" in self.list_of_features.split(","):
+                    alive1 = self.logic.update_player_wall(1)
+                    alive2 = self.logic.update_player_wall(2)
+                else:
+                #Updated das Spielfeld und überprüft "alive"
+                    alive1 = self.logic.update_player(1)
+                    alive2 = self.logic.update_player(2)
+
+                #überprüfe ob spiel weiterlaufen soll
+                if (not alive1):
+                    message1 = messagehandler.GAME_ENDED("You lost!")
+                    message2 = messagehandler.GAME_ENDED("You won!")
+                    message1 = message1.complete_message
+                    message2 = message2.complete_message
+                    self.client1_p1.send(message1)
+                    self.client2_p2.send(message2)
+                    self.playing = False
+
+
+                if (not alive2):
+                    message1 = messagehandler.GAME_ENDED("You won!")
+                    message2 = messagehandler.GAME_ENDED("You lost!")
+                    message1 = message1.complete_message
+                    message2 = message2.complete_message
+                    self.client1_p1.send(message1)
+                    self.client2_p2.send(message2)
+                    self.playing = False
+
+
+                board = self.logic.get_board()
+                message = GET_GAMEBOARD_FORMAT(board)
+                direction_handler.send(message)
+
+                #controls speed of game
+                game_speed = self.change_speed(self.list_of_features)
+                clock.tick(game_speed)
+
 
 class CLient_UDP_INGAME(Thread):
-
+    port_p1 = 0
+    port_p2 = 0
     def __init__(self, udp_socket, game_id, ip_p1, ip_p2):
         Thread.__init__(self)
         self.udp_socket = udp_socket
         self.id = game_id
         self.ip_p1 = ip_p1
         self.ip_p2 = ip_p2
-
-
-
+        self.seq = 0
     def run(self):
-
         while True:
-
             data, adr = self.udp_socket.recvfrom(32)
-            ip,port = adr
+            print(data)
+            ip , port = adr
             data = data.decode("ASCII")
             data = data.split()
+            #-----
+            if len(data) == 4:
+                seq = data[0]
+                if data[1] == "NEW_DIRECTION":
+                        player_id = int(data[2])
+                        if player_id == 1:
+                            direction = data[3]
+                            direction = direction.split(",")
+                            list_of_current_games[self.id].logic.set_direction(1,int(direction[0]),int(direction[1]))
+                        if player_id == 2:
+                            direction = data[3]
+                            direction = direction.split(",")
+                            list_of_current_games[self.id].logic.set_direction(2,int(direction[0]),int(direction[1]))
+            elif len(data) == 3:
+                seq = data[0]
+                if data[1] == "NEW_DIRECTION":
+                        player_id = int(data[2])
+                        if player_id == 1:
+                            self.port_p1 = port
+                        if player_id == 2:
+                            self.port_p2 = port
 
-            '''QUESTION: How can i detect which port belongs to which player??'''
-            if port == 2000:
-                player_id = 1
-            else:
-                player_id = 2
+    def send(self, board):
+        self.seq= int(self.seq)
+        self.seq += 1
 
-            if data[1] == "NEW_DIRECTION":
-
-                # not empty direction
-                if (len(data) == 3):
-                    direction = data[2]
-                    direction = direction.split(",")
-
-                    list_of_current_games[self.id].logic.set_direction(player_id,int(direction[0]),int(direction[1]))
-
-    def send(self, message):
-
+        command = "UPDATE_FIELD "
+        ROW_COL = "(1,1) "
+        self.seq = str(self.seq) + " "
+        message = self.seq + command + ROW_COL + board + "\x00"
         message = message.encode("ASCII")
-        self.udp_socket.sendto(message, (self.ip_p1, 2000))
-        self.udp_socket.sendto(message, (self.ip_p2, 2001))
+
+        self.udp_socket.sendto(message, (self.ip_p1, self.port_p1))
+        self.udp_socket.sendto(message, (self.ip_p2, self.port_p2))
+
+
+
 
 def GET_GAMEBOARD_FORMAT(board):
     row = []
@@ -426,12 +523,18 @@ def CREATE_Match(message_c,port_of_client,id_of_client):
         returnMessage = returnMessage.complete_message
         return returnMessage
 
+    if message_c.message_split[2] in list_of_active_matches_names:
+        returnMessage = messagehandler.ERR_FAILED_TO_CREATE("Name already taken")
+        returnMessage = returnMessage.complete_message
+        return returnMessage
+
     """create a match object in which we put or
     creator the game name (tron) and the name of the match +
     list of features """
+    ###!!check if name is taken!!!###
     check = check_feature_support(message_c.message_split[3])
     if not check:
-        returnMessage = messagehandler.ERR_FAILED_TO_CREATE("feature not supported")
+        returnMessage = messagehandler.ERR_FAILED_TO_CREATE("Feature not supported")
         returnMessage = returnMessage.complete_message
         return returnMessage
     else:
@@ -459,8 +562,6 @@ def LIST_MATCHES(message_c):
         returnMessage = messagehandler.GAMES(supported_game, list_of_active_matches_str)
         returnMessage = returnMessage.complete_message
         return returnMessage
-
-
 
 def MATCH_FEATURES(message_c):
 
@@ -536,20 +637,21 @@ def MATCH_STARTED(tcpSocket_p1,tcpSocket_p2,udp_port,color_p1,color_p2):
 def I_AM_READY(message_c,port_of_client):
 
     for game_object in list_of_current_games:
-
+        print(len(list_of_current_games))
+        print("Port1 :",game_object.client1_p1.port)
+        print("port of client" ,port_of_client)
         if game_object.client1_p1.port == port_of_client:
             game_object.ready_p1 = True
             if game_object.ready_p2 == True:
                 game_object.run()
             return
+        print("Port2 :",game_object.client2_p2.port)
         if game_object.client2_p2.port == port_of_client:
             game_object.ready_p2 = True
             if game_object.ready_p1 == True:
                 game_object.run()
             return
-        else:
-            #If client is not in a game??
-            return
+    return
 
 
 
@@ -660,10 +762,12 @@ def received_message(message, ip_of_client, port_of_client, id_of_client):
 ----------------------------------------------------------------------------"""
 # Multithreaded Python server
 #Start listening for Client connection + boradcast
-threads = []
-thread_listen = Thread(target = listen, args = ())
-thread_listen.start()
-thrad_listen_broadcast = Thread(target = listen_broadcast, args = ())
-thrad_listen_broadcast.start()
+if __name__ == "__main__":
+
+    threads = []
+    thread_listen = Thread(target = listen, args = ())
+    thread_listen.start()
+    thread_listen_broadcast = Thread(target = listen_broadcast, args = ())
+    thread_listen_broadcast.start()
 
 ###############################################################################

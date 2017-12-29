@@ -1,3 +1,0 @@
-/Users/sebastianlettner/Google Drive/5.Semester WS 17-18 /CI_Data/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/Users/sebastianlettner/Google Drive/5.Semester WS 17-18 /CI_Data/cmake-build-debug/CMakeFiles/edit_cache.dir
-/Users/sebastianlettner/Google Drive/5.Semester WS 17-18 /CI_Data/cmake-build-debug/CMakeFiles/CI.dir

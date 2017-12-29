@@ -1,4 +1,0 @@
-/Applications/CLion.app/Contents/bin/cmake/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "CodeBlocks - Unix Makefiles" "/Users/sebastianlettner/Google Drive/5.Semester WS 17-18 /CI_Data"
--- Configuring done
--- Generating done
--- Build files have been written to: /Users/sebastianlettner/Google Drive/5.Semester WS 17-18 /CI_Data/cmake-build-debug
